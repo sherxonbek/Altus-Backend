@@ -1,0 +1,32 @@
+services:
+  # Backend servisi
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: c2c-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/c2c_db
+      - JWT_SECRET=super_secret_jwt_key_c2c_project_2026
+      - JWT_EXPIRES_IN=7d
+      - DEFAULT_OTP=12345
+    depends_on:
+      - mongo
+    restart: always
+
+  # MongoDB servisi
+  mongo:
+    image: mongo:7
+    container_name: c2c-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: always
+
+volumes:
+  mongo-data:
