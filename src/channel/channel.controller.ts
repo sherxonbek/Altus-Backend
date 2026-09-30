@@ -172,7 +172,7 @@ export class ChannelController {
         return
       }
 
-      const result = await channelService.processWithdrawal(myChannel._id.toString(), amount, cleanCard)
+      const result = await channelService.processWithdrawal(myChannel._id.toString(), amount, cleanCard, userId)
       res.status(200).json(result)
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message || 'Xatolik' })

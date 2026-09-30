@@ -3,6 +3,7 @@ import { Channel, IChannel } from '../models/channel.model'
 import { Playlist } from '../models/playlist.model'
 import { User } from '../models/user.model'
 import { Subscription } from '../models/subscription.model'
+import { Withdrawal } from '../models/withdrawal.model'
 import { cacheService } from '../cache/cache.service'
 
 export class ChannelService {
@@ -190,20 +191,26 @@ export class ChannelService {
     }
   }
 
-  async processWithdrawal(channelId: string, amount: number, cardNumber: string) {
+  async processWithdrawal(channelId: string, amount: number, cardNumber: string, userId: string) {
     const channel = await Channel.findById(channelId)
     if (!channel) throw new Error('Kanal topilmadi')
     
     if ((channel.balance || 0) < amount) {
-      throw new Error('Balansda yetarli mablag\' yo\'q')
+      throw new Error("Balansda yetarli mablag' yo'q")
     }
     
     channel.balance -= amount
     await channel.save()
     
-    // Ideally we would save this to a Withdrawal model, but since we couldn't create it, 
-    // we'll just process the deduction.
-    return { success: true, message: 'Pul muvaffaqiyatli yechib olindi', newBalance: channel.balance }
+    const withdrawal = await Withdrawal.create({
+      userId: new Types.ObjectId(userId),
+      channelId: new Types.ObjectId(channelId),
+      amount,
+      cardNumber,
+      status: 'pending'
+    })
+    
+    return { success: true, message: 'Pul muvaffaqiyatli yechib olindi', newBalance: channel.balance, withdrawal }
   }
 }
 

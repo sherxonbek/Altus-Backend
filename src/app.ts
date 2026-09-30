@@ -11,6 +11,7 @@ import { playlistRouter } from './playlist/playlist.routes'
 import { uploadRouter } from './upload/upload.routes'
 import { userRouter } from './user/user.routes'
 import { errorHandler } from './middleware/error.middleware'
+import { adminRouter } from './admin/admin.routes'
 
 const app: Application = express()
 
@@ -89,6 +90,7 @@ app.use('/api/subscriptions', subscriptionRouter)
 app.use('/api/playlists', playlistRouter)
 app.use('/api/upload', uploadRouter)
 app.use('/api/users', userRouter)
+app.use('/api/admin', adminRouter)
 
 // Global xatoliklar ushlovchisi
 app.use(errorHandler)
