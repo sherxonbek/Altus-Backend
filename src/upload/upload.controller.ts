@@ -6,7 +6,7 @@ import { uploadProgressManager } from './upload.progress'
 
 export class UploadController {
   /**
-   * Frontend to'g'ridan-to'g'ri Kinescope uploaderiga yuklashi uchun sozlamalarni olish
+   * Frontend yuklash sozlamalarini olish (Master API kaliti oshkor bo'lmasligi uchun server orqali o'tkaziladi)
    */
   getKinescopeUploadConfig(_req: AuthenticatedRequest, res: Response): void {
     if (!kinescopeService.isConfigured()) {
@@ -18,11 +18,11 @@ export class UploadController {
       return
     }
 
+    // Xavfsizlik: Master API kaliti frontend brauzeriga berilmaydi!
     res.status(200).json({
       success: true,
-      directUpload: true,
-      uploaderUrl: 'https://uploader.kinescope.io/v2/video',
-      apiKey: config.kinescopeApiKey,
+      directUpload: false,
+      message: 'Xavfsiz server orqali yuklash faol',
       projectId: config.kinescopeProjectId,
     })
   }

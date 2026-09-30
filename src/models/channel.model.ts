@@ -9,6 +9,7 @@ export interface IChannel extends Document {
   description?: string
   subscribersCount: number
   videosCount: number
+  balance: number
   createdAt: Date
   updatedAt: Date
 }
@@ -53,6 +54,10 @@ const channelSchema = new Schema<IChannel>(
       type: Number,
       default: 0,
     },
+    balance: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -72,5 +77,8 @@ const channelSchema = new Schema<IChannel>(
     },
   }
 )
+
+// Eng mashhur kanallarni tez saralash uchun indeks
+channelSchema.index({ subscribersCount: -1 })
 
 export const Channel = model<IChannel>('Channel', channelSchema)

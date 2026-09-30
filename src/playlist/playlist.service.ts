@@ -10,6 +10,7 @@ import {
   buildSecureStreamData,
   StreamAuthResult,
 } from '../kinescope/kinescope.auth'
+import { cacheService } from '../cache/cache.service'
 
 export const formatDurationFromSeconds = (seconds?: number): string => {
   if (!seconds || isNaN(seconds) || seconds <= 0) return '00:00'
@@ -113,6 +114,13 @@ export const recalculatePlaylistPrices = (playlist: IPlaylist) => {
 export class PlaylistService {
   private async syncPlaylistVideoDurations(playlist: IPlaylist): Promise<boolean> {
     if (!kinescopeService.isConfigured()) return false
+    const needsSync = playlist.videos.some(
+      (v) =>
+        (!v.duration || v.duration === '10:00' || v.duration === '00:00' || !v.fileSize) &&
+        (v.kinescopeId || extractKinescopeIdFromUrl(v.videoUrl))
+    )
+    if (!needsSync) return false
+
     let hasChanges = false
     for (const video of playlist.videos) {
       if (
@@ -147,13 +155,43 @@ export class PlaylistService {
     if (hasChanges || playlist.videos.some((v) => v.isFree)) {
       recalculatePlaylistPrices(playlist)
       await playlist.save()
+      cacheService.delByPrefix('playlists:')
       return true
     }
     return false
   }
 
-  async getAllPlaylists(): Promise<IPlaylist[]> {
-    return Playlist.find().populate('channelId').sort({ createdAt: -1 })
+  async getAllPlaylists(options?: {
+    page?: number
+    limit?: number
+  }): Promise<{
+    playlists: IPlaylist[]
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+  }> {
+    const page = Math.max(1, options?.page || 1)
+    const limit = Math.max(1, Math.min(100, options?.limit || 20))
+    const skip = (page - 1) * limit
+
+    const [playlists, total] = await Promise.all([
+      Playlist.find()
+        .populate('channelId')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Playlist.countDocuments(),
+    ])
+
+    return {
+      playlists: playlists as unknown as IPlaylist[],
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    }
   }
 
   async getPlaylistsByChannelId(idOrUsername: string): Promise<IPlaylist[]> {
@@ -164,22 +202,24 @@ export class PlaylistService {
       channelId = new Types.ObjectId(idOrUsername)
     } else {
       const clean = idOrUsername.replace('@', '').toLowerCase()
-      const channel = await Channel.findOne({ username: clean })
+      const channel = await Channel.findOne({ username: clean }).lean()
       if (!channel) return []
       channelId = channel._id
     }
 
     const playlists = await Playlist.find({ channelId }).populate('channelId').sort({ createdAt: -1 })
-    for (const p of playlists) {
-      await this.syncPlaylistVideoDurations(p)
-    }
+    // Fon rejimida sinxronizatsiya (GET so'rovini kutib to'xtatmaydi)
+    playlists.forEach((p) => {
+      this.syncPlaylistVideoDurations(p).catch(() => {})
+    })
     return playlists
   }
 
   async getPlaylistById(playlistId: string): Promise<IPlaylist | null> {
     const playlist = await Playlist.findById(playlistId).populate('channelId')
     if (playlist) {
-      await this.syncPlaylistVideoDurations(playlist)
+      // Fon rejimida sinxronizatsiya
+      this.syncPlaylistVideoDurations(playlist).catch(() => {})
     }
     return playlist
   }
@@ -215,6 +255,7 @@ export class PlaylistService {
     })
 
     await playlist.save()
+    cacheService.delByPrefix('playlists:')
     return playlist
   }
 
@@ -248,6 +289,7 @@ export class PlaylistService {
 
     recalculatePlaylistPrices(playlist)
     await playlist.save()
+    cacheService.delByPrefix('playlists:')
     return playlist
   }
 
@@ -304,6 +346,7 @@ export class PlaylistService {
     }
 
     await Playlist.deleteOne({ _id: playlist._id })
+    cacheService.delByPrefix('playlists:')
 
     // Kanalning videolar sonini yangilash
     await this.syncChannelVideosCount(playlist.channelId.toString())
@@ -372,6 +415,7 @@ export class PlaylistService {
 
     recalculatePlaylistPrices(playlist)
     await playlist.save()
+    cacheService.delByPrefix('playlists:')
 
     // Kanalning videolar sonini yangilash
     await this.syncChannelVideosCount(playlist.channelId.toString())
@@ -406,6 +450,7 @@ export class PlaylistService {
     if (data.description !== undefined) video.description = data.description.trim()
 
     await playlist.save()
+    cacheService.delByPrefix('playlists:')
     return playlist
   }
 
@@ -450,6 +495,7 @@ export class PlaylistService {
     playlist.videos = playlist.videos.filter((v) => String(v.id) !== String(videoId))
     recalculatePlaylistPrices(playlist)
     await playlist.save()
+    cacheService.delByPrefix('playlists:')
 
     // Kanalning videolar sonini yangilash
     await this.syncChannelVideosCount(playlist.channelId.toString())
@@ -518,18 +564,37 @@ export class PlaylistService {
     if (!user.purchasedLessons) user.purchasedLessons = []
     if (!user.purchasedCourses) user.purchasedCourses = []
 
+    let isNewPurchase = false;
+    let addedAmount = 0;
+    
+    const courseAuthorPrice = playlist.authorPrice !== undefined && playlist.authorPrice !== null ? playlist.authorPrice : (playlist.rawPrice || 0);
+    const authorPerLesson = (playlist.videos && playlist.videos.length > 0 && courseAuthorPrice > 0) ? Math.round(courseAuthorPrice / playlist.videos.length) : 0;
+
     if (lessonId) {
       if (!user.purchasedLessons.includes(String(lessonId))) {
         user.purchasedLessons.push(String(lessonId))
+        isNewPurchase = true;
+        addedAmount = authorPerLesson;
       }
     } else {
       const pId = new Types.ObjectId(playlistId)
       if (!user.purchasedCourses.some((id) => id.toString() === playlistId)) {
         user.purchasedCourses.push(pId)
+        isNewPurchase = true;
+        addedAmount = courseAuthorPrice;
       }
     }
 
     await user.save()
+
+    if (isNewPurchase && addedAmount > 0) {
+      const channel = await Channel.findById(playlist.channelId)
+      if (channel) {
+        channel.balance = (channel.balance || 0) + addedAmount
+        await channel.save()
+      }
+    }
+
     return {
       success: true,
       message: lessonId

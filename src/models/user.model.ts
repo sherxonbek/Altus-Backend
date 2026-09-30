@@ -10,6 +10,7 @@ export interface IUser extends Document {
   refreshToken?: string
   purchasedCourses: Types.ObjectId[]
   purchasedLessons: string[]
+  savedPlaylists: Types.ObjectId[]
   createdAt: Date
   updatedAt: Date
 }
@@ -61,11 +62,20 @@ const userSchema = new Schema<IUser>(
         type: String,
       },
     ],
+    savedPlaylists: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Playlist',
+      },
+    ],
   },
-
   {
     timestamps: true,
   }
 )
+
+// Tez qidiruv va billing aggregation uchun indekslar
+userSchema.index({ purchasedCourses: 1 })
+userSchema.index({ purchasedLessons: 1 })
 
 export const User = model<IUser>('User', userSchema)

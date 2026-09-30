@@ -27,5 +27,7 @@ const subscriptionSchema = new Schema<ISubscription>(
 
 // Bitta foydalanuvchi bitta kanalga faqat bir marta obuna bo'lishi mumkin
 subscriptionSchema.index({ userId: 1, channelId: 1 }, { unique: true })
+// Kanal obunachilarini tez topish va hisoblash uchun
+subscriptionSchema.index({ channelId: 1 })
 
 export const Subscription = model<ISubscription>('Subscription', subscriptionSchema)

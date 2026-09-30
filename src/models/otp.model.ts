@@ -34,4 +34,7 @@ const otpSchema = new Schema<IOtp>(
   }
 )
 
+// Tez qidiruv uchun indeks
+otpSchema.index({ phone: 1, createdAt: -1 })
+
 export const Otp = model<IOtp>('Otp', otpSchema)

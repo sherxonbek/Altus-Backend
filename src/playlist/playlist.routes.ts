@@ -1,15 +1,20 @@
 import { Router } from 'express'
 import { playlistController } from './playlist.controller'
 import { authenticateJwt, optionalAuthenticateJwt } from '../auth/auth.middleware'
+import { cacheService } from '../cache/cache.service'
 
 const router = Router()
 
-// Ommaviy yo'llar
-router.get('/', (req, res, next) => playlistController.getAllPlaylists(req, res, next))
-router.get('/channel/:channelId', (req, res, next) =>
+// Ommaviy yo'llar (Kesh bilan tezlashtirilgan)
+router.get('/', cacheService.middleware(60, 'playlists'), (req, res, next) =>
+  playlistController.getAllPlaylists(req, res, next)
+)
+router.get('/channel/:channelId', cacheService.middleware(60, 'playlists'), (req, res, next) =>
   playlistController.getChannelPlaylists(req, res, next)
 )
-router.get('/:id', (req, res, next) => playlistController.getPlaylist(req, res, next))
+router.get('/:id', cacheService.middleware(60, 'playlists'), (req, res, next) =>
+  playlistController.getPlaylist(req, res, next)
+)
 
 // Xavfsiz DRM Stream manzili (Bepul darslar uchun hamma kira oladi, pullik darslar uchun sotib olingan bo'lishi shart)
 router.get('/:playlistId/lessons/:lessonId/stream', optionalAuthenticateJwt, (req, res, next) =>

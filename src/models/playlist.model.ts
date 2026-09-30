@@ -140,4 +140,9 @@ const playlistSchema = new Schema<IPlaylist>(
   }
 )
 
+// Tez qidiruv, saralash va filtrlash uchun indekslar
+playlistSchema.index({ createdAt: -1 })
+playlistSchema.index({ channelId: 1, createdAt: -1 })
+playlistSchema.index({ userId: 1, createdAt: -1 })
+
 export const Playlist = model<IPlaylist>('Playlist', playlistSchema)

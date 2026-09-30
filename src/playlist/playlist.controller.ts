@@ -1,12 +1,22 @@
 import { Request, Response, NextFunction } from 'express'
 import { playlistService } from './playlist.service'
 import { AuthenticatedRequest } from '../auth/auth.middleware'
-
 export class PlaylistController {
-  async getAllPlaylists(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getAllPlaylists(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const playlists = await playlistService.getAllPlaylists()
-      res.status(200).json({ success: true, playlists })
+      const page = req.query.page ? Math.max(1, parseInt(String(req.query.page), 10)) : 1
+      const limit = req.query.limit ? Math.max(1, Math.min(100, parseInt(String(req.query.limit), 10))) : 20
+      const result = await playlistService.getAllPlaylists({ page, limit })
+      res.status(200).json({
+        success: true,
+        playlists: result.playlists,
+        pagination: {
+          total: result.total,
+          page: result.page,
+          limit: result.limit,
+          totalPages: result.totalPages,
+        },
+      })
     } catch (error) {
       next(error)
     }

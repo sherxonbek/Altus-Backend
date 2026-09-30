@@ -161,7 +161,7 @@ export class AuthService {
         fullName: newUser.fullName,
         phone: newUser.phone,
         role: newUser.role,
-        avatar: newUser.avatar || '',
+        avatar: newUser.avatar || '', purchasedCourses: newUser.purchasedCourses || [], purchasedLessons: newUser.purchasedLessons || [],
       },
     }
   }
@@ -197,7 +197,7 @@ export class AuthService {
         fullName: user.fullName,
         phone: user.phone,
         role: user.role,
-        avatar: user.avatar || '',
+        avatar: user.avatar || '', purchasedCourses: user.purchasedCourses || [], purchasedLessons: user.purchasedLessons || [],
       },
     }
   }
@@ -234,7 +234,7 @@ export class AuthService {
         fullName: user.fullName,
         phone: user.phone,
         role: user.role,
-        avatar: user.avatar || '',
+        avatar: user.avatar || '', purchasedCourses: user.purchasedCourses || [], purchasedLessons: user.purchasedLessons || [],
       },
     }
   }
@@ -293,7 +293,7 @@ export class AuthService {
       fullName: user.fullName,
       phone: user.phone,
       role: user.role,
-      avatar: user.avatar || '',
+      avatar: user.avatar || '', purchasedCourses: user.purchasedCourses || [], purchasedLessons: user.purchasedLessons || [],
     }
   }
 }
