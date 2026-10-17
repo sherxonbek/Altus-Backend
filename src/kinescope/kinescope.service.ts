@@ -153,6 +153,7 @@ export class KinescopeService {
       headers: {
         Authorization: `Bearer ${config.kinescopeApiKey}`,
       },
+      timeout: 4000,
     })
 
     return response.data?.data

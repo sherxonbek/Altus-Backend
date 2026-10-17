@@ -25,4 +25,8 @@ const withdrawalSchema = new Schema<IWithdrawal>(
   { timestamps: true }
 )
 
+// Tezkor hisobot va status filtrlari uchun indekslar
+withdrawalSchema.index({ status: 1 })
+withdrawalSchema.index({ userId: 1 })
+
 export const Withdrawal = model<IWithdrawal>('Withdrawal', withdrawalSchema)

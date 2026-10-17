@@ -12,6 +12,7 @@ import { uploadRouter } from './upload/upload.routes'
 import { userRouter } from './user/user.routes'
 import { errorHandler } from './middleware/error.middleware'
 import { adminRouter } from './admin/admin.routes'
+import { settingRouter } from './setting/setting.routes'
 
 const app: Application = express()
 
@@ -27,8 +28,8 @@ app.use(
   })
 )
 app.use(cookieParser())
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: '1mb' }))
+app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 
 // Katta video fayllarni xotirani band qilmasdan HTTP 206 Range orqali oqimli (chunked stream) uzatish
 app.get('/uploads/videos/:filename', (req, res) => {
@@ -91,6 +92,7 @@ app.use('/api/playlists', playlistRouter)
 app.use('/api/upload', uploadRouter)
 app.use('/api/users', userRouter)
 app.use('/api/admin', adminRouter)
+app.use('/api/settings', settingRouter)
 
 // Global xatoliklar ushlovchisi
 app.use(errorHandler)

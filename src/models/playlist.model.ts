@@ -6,6 +6,7 @@ export interface ILesson {
   description?: string
   videoUrl: string
   kinescopeId?: string
+  localVideoUrl?: string
   thumbnail?: string
   duration?: string
   fileSize?: number
@@ -52,6 +53,10 @@ const lessonSchema = new Schema<ILesson>(
       trim: true,
     },
     kinescopeId: {
+      type: String,
+      trim: true,
+    },
+    localVideoUrl: {
       type: String,
       trim: true,
     },

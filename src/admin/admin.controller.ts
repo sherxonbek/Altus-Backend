@@ -10,6 +10,15 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
   }
 }
 
+export const getTrades = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const trades = await adminService.getTrades()
+    res.status(200).json({ success: true, data: trades })
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Xatolik' })
+  }
+}
+
 export const getWithdrawals = async (req: Request, res: Response): Promise<void> => {
   try {
     const { status } = req.query
@@ -44,3 +53,22 @@ export const rejectWithdrawal = async (req: Request, res: Response): Promise<voi
     res.status(400).json({ success: false, message: error.message || 'Xatolik' })
   }
 }
+
+export const getChannels = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const channels = await adminService.getChannels()
+    res.status(200).json({ success: true, data: channels })
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Xatolik' })
+  }
+}
+
+export const getUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const users = await adminService.getUsers()
+    res.status(200).json({ success: true, data: users })
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Xatolik' })
+  }
+}
+

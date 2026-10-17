@@ -67,3 +67,25 @@ export const toggleSavePlaylist = async (req: AuthenticatedRequest, res: Respons
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const topUpCoins = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    const { amount } = req.body;
+
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    // Balansni to'ldirish hozircha test rejimida vaqtincha yopiq
+    res.status(403).json({
+      success: false,
+      message: "Hisobni toʻldirish vaqtincha toʻxtatilgan (Test rejimi). Roʻyxatdan oʻtganingizda berilgan 100 Coin bonusidan foydalanishingiz mumkin.",
+    });
+    return;
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { Response, NextFunction } from 'express'
 import { AuthenticatedRequest } from '../auth/auth.middleware'
 import { kinescopeService } from '../kinescope/kinescope.service'
@@ -93,6 +95,17 @@ export class UploadController {
               percent: 100,
               message: 'Video muvaffaqiyatli saqlandi',
             })
+          }
+
+          // Kinescope ID bo'yicha lokal faylga havola (hardlink) yaratish
+          try {
+            const ext = path.extname(localFilePath) || '.mp4'
+            const aliasPath = path.join(path.dirname(localFilePath), `${kinescopeData.id}${ext}`)
+            if (!fs.existsSync(aliasPath)) {
+              fs.linkSync(localFilePath, aliasPath)
+            }
+          } catch {
+            // ignore
           }
 
           res.status(200).json({

@@ -11,6 +11,7 @@ import {
   StreamAuthResult,
 } from '../kinescope/kinescope.auth'
 import { cacheService } from '../cache/cache.service'
+import { settingService } from '../setting/setting.service'
 
 export const formatDurationFromSeconds = (seconds?: number): string => {
   if (!seconds || isNaN(seconds) || seconds <= 0) return '00:00'
@@ -88,27 +89,16 @@ export const recalculatePlaylistPrices = (playlist: IPlaylist) => {
 
   const authorPerLesson = count > 0 && authorTotal > 0 ? Math.round(authorTotal / count) : 0
 
-  let totalCalculated = 0
-
   playlist.videos.forEach((video) => {
-    const mins = parseDurationToMinutes(video.duration)
-    const mb = parseFileSizeToMB(video.fileSize, mins)
-    const serverCost = calculateDynamicVideoCost(mins, mb)
-
-    // MUALLIF NARXI USTIGA SERVER XARAJATLARI VA MARJASI QO'SHILADI:
-    // Masalan: muallif 10 000 so'm qo'ysa + 1 500 so'm server xarajati = 11 500 so'm!
-    // Agar muallif 0 so'm qo'ysa + 1 500 so'm server xarajati = 1 500 so'm!
-    const finalLessonPrice = authorPerLesson + serverCost
-    video.rawPrice = finalLessonPrice
-    video.price = formatPrice(finalLessonPrice)
-    video.isFree = false // Server xarajati sababli darslar mutlaqo bepul bo'lmaydi
-
-    totalCalculated += finalLessonPrice
+    // Server xarajatisiz sof muallif narxidan hisoblanadi
+    video.rawPrice = authorPerLesson
+    video.price = formatPrice(authorPerLesson)
+    video.isFree = authorPerLesson === 0
   })
 
-  // Playlist yakuniy narxi: muallif narxi + barcha darslarning server xarajatlari yig'indisi
-  playlist.rawPrice = totalCalculated
-  playlist.price = formatPrice(totalCalculated)
+  // Playlist yakuniy narxi: sof muallif narxi
+  playlist.rawPrice = authorTotal
+  playlist.price = formatPrice(authorTotal)
 }
 
 export class PlaylistService {
@@ -152,7 +142,7 @@ export class PlaylistService {
       }
     }
 
-    if (hasChanges || playlist.videos.some((v) => v.isFree)) {
+    if (hasChanges) {
       recalculatePlaylistPrices(playlist)
       await playlist.save()
       cacheService.delByPrefix('playlists:')
@@ -317,9 +307,11 @@ export class PlaylistService {
         }
 
         // Lokal fayl bo'lsa diskdan o'chirish
-        if (video.videoUrl && video.videoUrl.includes('/uploads/videos/')) {
+        const localUrlToDelete =
+          video.localVideoUrl || (video.videoUrl?.includes('/uploads/videos/') ? video.videoUrl : null)
+        if (localUrlToDelete) {
           try {
-            const filename = path.basename(video.videoUrl)
+            const filename = path.basename(localUrlToDelete)
             const filePath = path.resolve(process.cwd(), 'uploads', 'videos', filename)
             if (fs.existsSync(filePath)) {
               fs.unlinkSync(filePath)
@@ -362,6 +354,7 @@ export class PlaylistService {
       thumbnail?: string
       duration?: string
       fileSize?: number
+      localVideoUrl?: string
     }
   ): Promise<IPlaylist> {
     const playlist = await Playlist.findOne({
@@ -391,11 +384,20 @@ export class PlaylistService {
       }
     }
 
+    const localVideoUrl =
+      videoData.localVideoUrl ||
+      this.findLocalVideoForLesson(
+        { videoUrl: videoData.videoUrl, fileSize: initialFileSize, createdAt: new Date() },
+        kinescopeId
+      ) ||
+      undefined
+
     const newLesson: ILesson = {
       id: `lesson-${Date.now()}`,
       title: videoData.title.trim(),
       videoUrl: videoData.videoUrl.trim(),
       kinescopeId,
+      localVideoUrl,
       description: videoData.description?.trim(),
       thumbnail: videoData.thumbnail?.trim(),
       duration: initialDuration || '00:00',
@@ -478,9 +480,14 @@ export class PlaylistService {
       }
 
       // 2. Agar lokal fayl bo'lsa diskdan o'chirish
-      if (videoToDelete.videoUrl && videoToDelete.videoUrl.includes('/uploads/videos/')) {
+      const localUrlToDelete =
+        videoToDelete.localVideoUrl ||
+        (videoToDelete.videoUrl && videoToDelete.videoUrl.includes('/uploads/videos/')
+          ? videoToDelete.videoUrl
+          : null)
+      if (localUrlToDelete) {
         try {
-          const filename = path.basename(videoToDelete.videoUrl)
+          const filename = path.basename(localUrlToDelete)
           const filePath = path.resolve(process.cwd(), 'uploads', 'videos', filename)
           if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath)
@@ -501,6 +508,100 @@ export class PlaylistService {
     await this.syncChannelVideosCount(playlist.channelId.toString())
 
     return playlist
+  }
+
+  /**
+   * Dars uchun backend/uploads/videos/ papkasidagi mavjud lokal videoni topish
+   */
+  findLocalVideoForLesson(
+    lesson: { videoUrl?: string; localVideoUrl?: string; fileSize?: number; createdAt?: Date },
+    kinescopeId?: string
+  ): string | null {
+    const videosDir = path.resolve(process.cwd(), 'uploads', 'videos')
+    if (!fs.existsSync(videosDir)) {
+      return null
+    }
+
+    // 1. Agar darsda localVideoUrl allaqachon belgilangan bo'lsa
+    if (lesson.localVideoUrl && lesson.localVideoUrl.includes('/uploads/videos/')) {
+      const filename = path.basename(lesson.localVideoUrl)
+      if (fs.existsSync(path.join(videosDir, filename))) {
+        return `/uploads/videos/${filename}`
+      }
+    }
+
+    // 2. Agar lesson.videoUrl ning o'zi /uploads/videos/ bo'lsa
+    if (lesson.videoUrl && lesson.videoUrl.includes('/uploads/videos/')) {
+      const filename = path.basename(lesson.videoUrl)
+      if (fs.existsSync(path.join(videosDir, filename))) {
+        return `/uploads/videos/${filename}`
+      }
+    }
+
+    // 3. Kinescope ID bo'yicha nomlangan fayl mavjudmi tekshirish
+    if (kinescopeId) {
+      try {
+        const files = fs.readdirSync(videosDir)
+        const matchByName = files.find(
+          (f) => f.startsWith(`${kinescopeId}.`) || f === kinescopeId || f.includes(kinescopeId)
+        )
+        if (matchByName) {
+          return `/uploads/videos/${matchByName}`
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 4. Fayl hajmi (fileSize) bo'yicha mos keluvchi videoni qidirish
+    if (lesson.fileSize && lesson.fileSize > 0) {
+      try {
+        const files = fs.readdirSync(videosDir)
+        for (const file of files) {
+          const filePath = path.join(videosDir, file)
+          const stat = fs.statSync(filePath)
+          if (stat.isFile() && stat.size === lesson.fileSize) {
+            return `/uploads/videos/${file}`
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 5. Yaratilgan vaqt (createdAt) ga yaqin bo'lgan video faylni qidirish
+    try {
+      const files = fs.readdirSync(videosDir)
+      const lessonCreatedTime = lesson.createdAt ? new Date(lesson.createdAt).getTime() : 0
+      let bestMatch: { file: string; diff: number } | null = null
+
+      for (const file of files) {
+        const filePath = path.join(videosDir, file)
+        const stat = fs.statSync(filePath)
+        if (!stat.isFile()) continue
+
+        const match = file.match(/video_(\d+)_/)
+        const fileTime = match ? parseInt(match[1], 10) : stat.mtimeMs
+
+        if (lessonCreatedTime > 0) {
+          const diff = Math.abs(lessonCreatedTime - fileTime)
+          // 30 daqiqa (1800000 ms) ichida yuklangan bo'lsa
+          if (diff < 30 * 60 * 1000) {
+            if (!bestMatch || diff < bestMatch.diff) {
+              bestMatch = { file, diff }
+            }
+          }
+        }
+      }
+
+      if (bestMatch) {
+        return `/uploads/videos/${bestMatch.file}`
+      }
+    } catch {
+      // ignore
+    }
+
+    return null
   }
 
   async getLessonStream(
@@ -543,13 +644,52 @@ export class PlaylistService {
       ? { id: userDoc._id.toString(), phone: userDoc.phone, fullName: userDoc.fullName }
       : undefined
 
-    return buildSecureStreamData(lesson.videoUrl, userData)
+    let streamVideoUrl = lesson.videoUrl
+    const kinescopeId = lesson.kinescopeId || extractKinescopeIdFromUrl(lesson.videoUrl)
+
+    if (kinescopeId && kinescopeService.isConfigured()) {
+      const cacheKey = `kinescope:status:${kinescopeId}`
+      const cachedStatus = cacheService.get<string>(cacheKey)
+
+      let isProcessingOrError = false
+
+      if (cachedStatus !== 'done') {
+        try {
+          const kVideo = await kinescopeService.getVideo(kinescopeId)
+          if (!kVideo || kVideo.status !== 'done') {
+            isProcessingOrError = true
+          } else {
+            cacheService.set(cacheKey, 'done', 86400) // 24 soat kesh
+          }
+        } catch (err: any) {
+          console.warn(`[getLessonStream] Kinescope status tekshirishda xatolik (${kinescopeId}):`, err.message)
+          isProcessingOrError = true
+        }
+      }
+
+      if (isProcessingOrError) {
+        // Serverda backend/uploads/videos/ papkasida saqlangan lokal video mavjud bo'lsa,
+        // avtomatik ushbu lokal video manzilini (/uploads/videos/...) qaytarish
+        const localVideo = this.findLocalVideoForLesson(lesson, kinescopeId)
+        if (localVideo) {
+          console.log(`[getLessonStream] Video hali processing holatida yoki xatolik. Lokal video tanlandi: ${localVideo}`)
+          streamVideoUrl = localVideo
+          if (!lesson.localVideoUrl) {
+            lesson.localVideoUrl = localVideo
+            playlist.save().catch(() => {})
+          }
+        }
+      }
+    }
+
+    return buildSecureStreamData(streamVideoUrl, userData)
   }
 
   async purchaseCourseOrLesson(
     userId: string,
     playlistId: string,
-    lessonId?: string
+    lessonId?: string,
+    paymentMethod: 'coins' | 'direct' = 'coins'
   ) {
     const user = await User.findById(userId)
     if (!user) {
@@ -564,24 +704,73 @@ export class PlaylistService {
     if (!user.purchasedLessons) user.purchasedLessons = []
     if (!user.purchasedCourses) user.purchasedCourses = []
 
-    let isNewPurchase = false;
-    let addedAmount = 0;
-    
-    const courseAuthorPrice = playlist.authorPrice !== undefined && playlist.authorPrice !== null ? playlist.authorPrice : (playlist.rawPrice || 0);
-    const authorPerLesson = (playlist.videos && playlist.videos.length > 0 && courseAuthorPrice > 0) ? Math.round(courseAuthorPrice / playlist.videos.length) : 0;
+    const alreadyPurchasedCourse = user.purchasedCourses.some((id) => id.toString() === playlistId)
+    const alreadyPurchasedLesson = lessonId ? user.purchasedLessons.includes(String(lessonId)) : false
+
+    if (!lessonId && alreadyPurchasedCourse) {
+      return {
+        success: true,
+        message: 'Ushbu kurs avval xarid qilingan',
+        purchasedCourses: user.purchasedCourses,
+        purchasedLessons: user.purchasedLessons,
+        coins: user.coins || 0,
+        spentCoins: 0,
+      }
+    }
+
+    if (lessonId && (alreadyPurchasedCourse || alreadyPurchasedLesson)) {
+      return {
+        success: true,
+        message: 'Ushbu dars avval xarid qilingan',
+        purchasedCourses: user.purchasedCourses,
+        purchasedLessons: user.purchasedLessons,
+        coins: user.coins || 0,
+        spentCoins: 0,
+      }
+    }
+
+    // Tizimdagi coin kursini olish
+    const settings = await settingService.getSettings()
+    const coinPriceUzs = settings.coinPriceUzs || 130
+
+    // Sof muallif narxidan hisoblash (server xarajatlarisiz)
+    const courseAuthorPrice =
+      playlist.authorPrice !== undefined && playlist.authorPrice !== null
+        ? playlist.authorPrice
+        : (playlist.rawPrice || 0)
+    const authorPerLesson =
+      playlist.videos && playlist.videos.length > 0 && courseAuthorPrice > 0
+        ? Math.round(courseAuthorPrice / playlist.videos.length)
+        : 0
+
+    const targetPriceUzs = lessonId ? authorPerLesson : courseAuthorPrice
+    const requiredCoins = targetPriceUzs > 0 ? Math.ceil(targetPriceUzs / coinPriceUzs) : 0
+
+    // Agar coin orqali to'lov bo'lsa va dars pullik bo'lsa
+    if (paymentMethod === 'coins' && requiredCoins > 0) {
+      if ((user.coins || 0) < requiredCoins) {
+        throw new Error(
+          `Hisobingizda coin yetarli emas! Talab qilinadi: ${requiredCoins.toLocaleString()} coin, sizdagi balans: ${(user.coins || 0).toLocaleString()} coin. Iltimos, hisobingizni toʻldiring.`
+        )
+      }
+      user.coins = (user.coins || 0) - requiredCoins
+    }
+
+    let isNewPurchase = false
+    let addedAmount = 0
 
     if (lessonId) {
       if (!user.purchasedLessons.includes(String(lessonId))) {
         user.purchasedLessons.push(String(lessonId))
-        isNewPurchase = true;
-        addedAmount = authorPerLesson;
+        isNewPurchase = true
+        addedAmount = authorPerLesson
       }
     } else {
       const pId = new Types.ObjectId(playlistId)
       if (!user.purchasedCourses.some((id) => id.toString() === playlistId)) {
         user.purchasedCourses.push(pId)
-        isNewPurchase = true;
-        addedAmount = courseAuthorPrice;
+        isNewPurchase = true
+        addedAmount = courseAuthorPrice
       }
     }
 
@@ -598,10 +787,12 @@ export class PlaylistService {
     return {
       success: true,
       message: lessonId
-        ? 'Dars muvaffaqiyatli xarid qilindi'
-        : 'To‘liq kurs muvaffaqiyatli xarid qilindi',
+        ? `Dars muvaffaqiyatli xarid qilindi${requiredCoins > 0 ? ` (${requiredCoins.toLocaleString()} coin)` : ''}`
+        : `To‘liq kurs muvaffaqiyatli xarid qilindi${requiredCoins > 0 ? ` (${requiredCoins.toLocaleString()} coin)` : ''}`,
       purchasedCourses: user.purchasedCourses,
       purchasedLessons: user.purchasedLessons,
+      coins: user.coins || 0,
+      spentCoins: requiredCoins,
     }
   }
 
@@ -614,7 +805,82 @@ export class PlaylistService {
       // ignore
     }
   }
-}
 
+  async consumeStreamTime(
+    userId: string,
+    data: {
+      secondsWatched: number
+      quality: '360p' | '720p' | '1080p'
+      playlistId?: string
+      lessonId?: string
+    }
+  ) {
+    const user = await User.findById(userId)
+    if (!user) {
+      throw new Error('Foydalanuvchi topilmadi')
+    }
+
+    const settings = await settingService.getSettings()
+    const quality = data.quality || '720p'
+    let ratePerMin = settings.streamRate720p || 3
+
+    if (quality === '360p') {
+      ratePerMin = settings.streamRate360p !== undefined ? settings.streamRate360p : 1
+    } else if (quality === '1080p') {
+      ratePerMin = settings.streamRate1080p !== undefined ? settings.streamRate1080p : 7
+    }
+
+    const seconds = Math.max(1, data.secondsWatched || 15)
+    // Har bir daqiqadagi tarifga ko'ra hisoblash (kamida 1 coin)
+    const coinsNeeded = ratePerMin > 0 ? Math.max(1, Math.round((seconds / 60) * ratePerMin)) : 0
+
+    console.log(
+      `[StreamConsume] User: ${user.fullName} (${user._id}), seconds: ${seconds}, quality: ${quality}, ratePerMin: ${ratePerMin}, coinsNeeded: ${coinsNeeded}, currentCoins: ${user.coins || 0}`
+    )
+
+    if (coinsNeeded > 0 && (user.coins || 0) < coinsNeeded) {
+      return {
+        success: false,
+        outOfCoins: true,
+        coins: user.coins || 0,
+        coinsNeeded,
+        quality,
+        ratePerMin,
+        message: 'Hisobingizda coin tugadi. Videoni ko‘rishni davom ettirish uchun hisobingizni toʻldiring.',
+      }
+    }
+
+    if (coinsNeeded > 0) {
+      user.coins = Math.max(0, (user.coins || 0) - coinsNeeded)
+      await user.save()
+    }
+
+    return {
+      success: true,
+      outOfCoins: false,
+      coins: user.coins || 0,
+      deducted: coinsNeeded,
+      quality,
+      ratePerMin,
+    }
+  }
+
+  async syncAllPlaylistsPrices(): Promise<void> {
+    try {
+      const playlists = await Playlist.find()
+      for (const playlist of playlists) {
+        if (playlist.authorPrice === undefined || playlist.authorPrice === null || playlist.authorPrice === 0) {
+          playlist.authorPrice = playlist.rawPrice || 0
+        }
+        recalculatePlaylistPrices(playlist)
+        await playlist.save()
+      }
+      cacheService.delByPrefix('playlists:')
+      console.log(`✅ [Prices] ${playlists.length} ta playlist narxlari sof muallif narxiga sinxronlandi`)
+    } catch (err: any) {
+      console.error('[Prices] Playlist narxlarini sinxronlashda xatolik:', err.message)
+    }
+  }
+}
 
 export const playlistService = new PlaylistService()

@@ -6,6 +6,7 @@ export interface IUser extends Document {
   password?: string
   role: 'user' | 'admin'
   avatar?: string
+  coins: number
   isPhoneVerified: boolean
   refreshToken?: string
   purchasedCourses: Types.ObjectId[]
@@ -43,6 +44,11 @@ const userSchema = new Schema<IUser>(
       type: String,
       default: '',
     },
+    coins: {
+      type: Number,
+      default: 100, // Yangi ro'yxatdan o'tgan foydalanuvchiga 100 coin test bonusi
+      min: 0,
+    },
     isPhoneVerified: {
       type: Boolean,
       default: false,
@@ -75,6 +81,7 @@ const userSchema = new Schema<IUser>(
 )
 
 // Tez qidiruv va billing aggregation uchun indekslar
+userSchema.index({ role: 1 })
 userSchema.index({ purchasedCourses: 1 })
 userSchema.index({ purchasedLessons: 1 })
 

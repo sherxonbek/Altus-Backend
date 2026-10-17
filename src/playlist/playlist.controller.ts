@@ -120,7 +120,7 @@ export class PlaylistController {
         return
       }
 
-      const { title, videoUrl, description, thumbnail, duration, fileSize } = req.body
+      const { title, videoUrl, description, thumbnail, duration, fileSize, localVideoUrl, localFallbackUrl } = req.body
       if (!title || !videoUrl) {
         res.status(400).json({
           success: false,
@@ -136,6 +136,7 @@ export class PlaylistController {
         thumbnail,
         duration,
         fileSize: typeof fileSize === 'number' ? fileSize : (fileSize ? parseInt(fileSize, 10) : undefined),
+        localVideoUrl: (localVideoUrl || localFallbackUrl)?.trim(),
       })
 
       res.status(201).json({ success: true, playlist })
@@ -210,12 +211,33 @@ export class PlaylistController {
       }
 
       const playlistId = String(req.params.playlistId || '')
-      const { lessonId } = req.body
+      const { lessonId, paymentMethod } = req.body
 
-      const result = await playlistService.purchaseCourseOrLesson(userId, playlistId, lessonId)
+      const result = await playlistService.purchaseCourseOrLesson(userId, playlistId, lessonId, paymentMethod)
       res.status(200).json(result)
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message || 'Xarid qilishda xatolik yuz berdi' })
+    }
+  }
+
+  async consumeStream(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.userId
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Avtorizatsiyadan oʻtilmagan' })
+        return
+      }
+
+      const { secondsWatched, quality, playlistId, lessonId } = req.body
+      const result = await playlistService.consumeStreamTime(userId, {
+        secondsWatched: Number(secondsWatched) || 30,
+        quality: quality || '720p',
+        playlistId: playlistId ? String(playlistId) : undefined,
+        lessonId: lessonId ? String(lessonId) : undefined,
+      })
+      res.status(200).json(result)
+    } catch (error: any) {
+      res.status(400).json({ success: false, message: error.message || 'Stream coin yechishda xatolik yuz berdi' })
     }
   }
 }

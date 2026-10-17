@@ -142,6 +142,7 @@ export class AuthService {
       password: hashedPassword,
       isPhoneVerified: true,
       role: 'user',
+      coins: 100, // Yangi foydalanuvchiga birinchi bor ro'yxatdan o'tganda 100 coin bonus
     })
 
     const { accessToken, refreshToken } = this.generateTokens(newUser)
@@ -153,7 +154,7 @@ export class AuthService {
 
     return {
       success: true,
-      message: "Ro'yxatdan o'tish muvaffaqiyatli yakunlandi",
+      message: "Ro'yxatdan o'tish muvaffaqiyatli yakunlandi! Test uchun hisobingizga 100 Coin bonus taqdim etildi 🎁",
       accessToken,
       refreshToken,
       user: {
@@ -161,7 +162,10 @@ export class AuthService {
         fullName: newUser.fullName,
         phone: newUser.phone,
         role: newUser.role,
-        avatar: newUser.avatar || '', purchasedCourses: newUser.purchasedCourses || [], purchasedLessons: newUser.purchasedLessons || [],
+        avatar: newUser.avatar || '',
+        coins: newUser.coins ?? 100,
+        purchasedCourses: newUser.purchasedCourses || [],
+        purchasedLessons: newUser.purchasedLessons || [],
       },
     }
   }
@@ -197,7 +201,10 @@ export class AuthService {
         fullName: user.fullName,
         phone: user.phone,
         role: user.role,
-        avatar: user.avatar || '', purchasedCourses: user.purchasedCourses || [], purchasedLessons: user.purchasedLessons || [],
+        avatar: user.avatar || '',
+        coins: user.coins || 0,
+        purchasedCourses: user.purchasedCourses || [],
+        purchasedLessons: user.purchasedLessons || [],
       },
     }
   }
@@ -234,7 +241,10 @@ export class AuthService {
         fullName: user.fullName,
         phone: user.phone,
         role: user.role,
-        avatar: user.avatar || '', purchasedCourses: user.purchasedCourses || [], purchasedLessons: user.purchasedLessons || [],
+        avatar: user.avatar || '',
+        coins: user.coins || 0,
+        purchasedCourses: user.purchasedCourses || [],
+        purchasedLessons: user.purchasedLessons || [],
       },
     }
   }
@@ -293,7 +303,10 @@ export class AuthService {
       fullName: user.fullName,
       phone: user.phone,
       role: user.role,
-      avatar: user.avatar || '', purchasedCourses: user.purchasedCourses || [], purchasedLessons: user.purchasedLessons || [],
+      avatar: user.avatar || '',
+      coins: user.coins || 0,
+      purchasedCourses: user.purchasedCourses || [],
+      purchasedLessons: user.purchasedLessons || [],
     }
   }
 }

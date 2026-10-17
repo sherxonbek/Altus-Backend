@@ -91,20 +91,15 @@ export const buildSecureStreamData = (
   }
 
   if (isKinescope && kinescopeId) {
-    const { token, expiresAt } = generateDrmAuthToken({
-      userId: user?.id || 'guest',
-      videoId: kinescopeId,
-      phone: user?.phone,
-    })
+    const expiresAt = Math.floor(Date.now() / 1000) + 900
 
-    // Kinescope embed URL: ?drmauthtoken=... bilan birga (suv belgisiz, toza video)
-    const streamUrl = `https://kinescope.io/embed/${kinescopeId}?drmauthtoken=${token}&autoplay=1&dnt=1`
+    // Kinescope embed URL: toza havola (drmauthtoken parametrisiz, xatoliklarning oldini olish uchun)
+    const streamUrl = `https://kinescope.io/embed/${kinescopeId}?autoplay=1&dnt=1`
 
     return {
       streamUrl,
       kinescopeId,
       isKinescope: true,
-      drmAuthToken: token,
       watermark,
       expiresAt,
     }

@@ -26,6 +26,11 @@ router.post('/:playlistId/purchase', authenticateJwt, (req, res, next) =>
   playlistController.purchase(req as any, res, next)
 )
 
+// Video ko'rish sifati va davomiyligi bo'yicha coin yechish (Server/Bandwidth xarajati)
+router.post('/stream-consume', authenticateJwt, (req, res, next) =>
+  playlistController.consumeStream(req as any, res, next)
+)
+
 // Playlist boshqaruvi (Auth talab qilinadi)
 router.post('/', authenticateJwt, (req, res, next) =>
   playlistController.createPlaylist(req, res, next)
