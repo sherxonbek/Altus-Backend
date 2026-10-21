@@ -92,7 +92,6 @@ export class AuthService {
         ? `Tasdiqlash kodi yaratildi (Telegram: ${telegramErrorMsg})`
         : "Tasdiqlash kodi yuborildi",
       phone: `+998 ${phone}`,
-      testCode: code,
     }
   }
 
@@ -101,17 +100,10 @@ export class AuthService {
     const otpRecord = await Otp.findOne({ phone })
 
     if (!otpRecord) {
-      if (code === config.defaultOtp) {
-        await Otp.create({ phone, code, isVerified: true })
-        return {
-          success: true,
-          message: 'Kod muvaffaqiyatli tasdiqlandi',
-        }
-      }
       throw new Error("Tasdiqlash kodi topilmadi yoki muddati o'tgan. Qaytadan kod so'rang")
     }
 
-    if (otpRecord.code !== code && code !== config.defaultOtp) {
+    if (otpRecord.code !== code) {
       throw new Error("Kiritilgan tasdiqlash kodi noto'g'ri")
     }
 

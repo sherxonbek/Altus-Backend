@@ -15,8 +15,6 @@ export const config = {
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret_2026',
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
 
-  defaultOtp: process.env.DEFAULT_OTP || '12345',
-
   // Telegram Gateway Token
   telegramGatewayToken: process.env.TELEGRAM_GATEWAY_TOKEN || '',
 
